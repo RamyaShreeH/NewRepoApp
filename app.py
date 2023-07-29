@@ -17,6 +17,7 @@ class Comment(db.Document):
     _id = db.SequenceField(primary_key = True)
     application_id = db.StringField(required = True)
     comment_description = db.StringField()
+    submitter_id = db.StringField()
     created_at = db.DateTimeField(default = datetime.datetime.now)
     created_by = db.StringField()
     updated_at = db.DateTimeField()
@@ -25,7 +26,7 @@ class Comment(db.Document):
     deleted_by = db.StringField()
     
 class Application(db.Document):
-    
+    # application_id
     _id = db.SequenceField(primary_key = True)
     submitter_id = db.StringField(required = True)
     description = db.StringField(required = True)
@@ -40,6 +41,7 @@ class Application(db.Document):
 
 class Accused(db.Document):
     _id = db.SequenceField(primary_key=True)
+    submitter_id = db.StringField()
     name = db.StringField()
     designation = db.StringField()
     department = db.StringField()
@@ -66,23 +68,15 @@ class Action(db.Document):
 
 @app.route('/applications', methods=["POST"])
 def add_application():
-    #data = request.get_json()
     data = request.json
     submitter_id = data.get('submitter_id')
-
-    #Todo should get application id
-    #application_id = data.get('application_id') 
-    #print("Application Id:", application_id)
-
     applications = Application(submitter_id = submitter_id, description = data.get('description'), state = 'new', owner = ' ', created_by = submitter_id).save()
-    Action(application_id = 100, action = "Added the application", created_at = datetime.datetime.now).save()
+    application_id = applications.id
+    Action(application_id = application_id, action = "Added the application", created_at = datetime.datetime.now).save()
     return  jsonify(applications), 201
 
 @app.route('/applications', methods = ['GET'])
 def  get_applications():
-    '''applications = application.objects()
-    return  jsonify(applications), 200'''
-
     page = int(request.args.get('page',1))
     limit = int(request.args.get('limit',10))
     offset = (page - 1) * limit
@@ -129,14 +123,10 @@ def add_comments():
     data = request.json
     application_id = data.get('application_id')
     comment_description = data.get('comment_description')
-
-        #Todo should get application id
-        #submitter_id = data.get('submitter_id') 
-        #print("Submitter Id:", submitter_id)
-
-    submitter_id = "XYZ"
+    submitter_id = data.get('submitter_id')
+    #print("submitter_id:",submitter_id)
     comments = Comment(application_id = application_id, comment_description = comment_description, created_by = submitter_id).save()
-    #Action(application_id = 100, action = "Added the application", created_at = datetime.datetime.now).save()
+    Action(application_id = application_id, action = "Added comment to the application", created_at = datetime.datetime.now, created_by = submitter_id).save()
     return  jsonify(comments), 201
         
 
@@ -168,23 +158,23 @@ def get_comment_by_application_id(application_id):
 def update_comment(id):
     json = request.json
     print("Id",id)
-    #application_id = json['application_id']
+    application_id = json['application_id']
     comment_description = json['comment_description']
-    submitter_id = "CDE"
+    submitter_id = json['submitter_id']
     comment = Comment.objects.get_or_404(_id=id)
     comment.update(comment_description = comment_description, updated_at = datetime.datetime.now, updated_by = submitter_id)
-    #Action(application_id = application_id, action = "Updated the application", updated_at = datetime.datetime.now,  updated_by = submitter_id).save()
+    Action(application_id = application_id, action = "Updated the comment", updated_at = datetime.datetime.now,  updated_by = submitter_id).save()
     return jsonify({"message":"Updated successfully."}), 200
 
 
 @app.route('/comments/<id>', methods=['DELETE'])
 def delete_comment(id):
     json = request.json
-    #application_id = json['application_id']
-    submitter_id = "CDE"
+    application_id = json['application_id']
+    submitter_id = json['submitter_id']
     comment = Comment.objects.get_or_404(_id=id)
     comment.update(deleted_at = datetime.datetime.now, deleted_by = submitter_id)
-    #Action(application_id = application_id, action = "Deleted the application", deleted_at = datetime.datetime.now, deleted_by = submitter_id).save()
+    Action(application_id = application_id, action = "Deleted the comment", deleted_at = datetime.datetime.now, deleted_by = submitter_id).save()
     return jsonify({"message":"Deleted successfully."}), 200
 
 #Accused apis
@@ -193,17 +183,12 @@ def delete_comment(id):
 def add_accuse():
     data = request.json
     application_id = data.get('application_id')
+    submitter_id = data.get('submitter_id')
     name = data.get('name')
     designation = data.get('designation')
     department = data.get('department')
-
-        #Todo should get application id
-        #submitter_id = data.get('submitter_id') 
-        #print("Submitter Id:", submitter_id)
-
-    submitter_id = "XYZ"
     accused = Accused(application_id = application_id, name = name, designation = designation, department = department, created_by = submitter_id).save()
-    #Action(application_id = 100, action = "Added the application", created_at = datetime.datetime.now).save()
+    Action(application_id = application_id, action = "Added the accused", created_at = datetime.datetime.now, created_by = submitter_id).save()
     return  jsonify(accused), 201
         
 
@@ -227,26 +212,25 @@ def get_one_accused(id):
 def update_accused(id):
     data = request.json
     print("Id",id)
-    #application_id = json['application_id']
+    application_id = data.get('application_id')
     name = data.get('name')
     designation = data.get('designation')
     department = data.get('department')
-   
-    submitter_id = "ABC"
+    submitter_id = data.get('submitter_id')
     accused = Accused.objects.get_or_404(_id=id)
     accused.update(name = name, designation = designation, department = department, updated_at = datetime.datetime.now, updated_by = submitter_id)
-    #Action(application_id = application_id, action = "Updated the application", updated_at = datetime.datetime.now,  updated_by = submitter_id).save()
+    Action(application_id = application_id, action = "Updated the accused", updated_at = datetime.datetime.now,  updated_by = submitter_id).save()
     return jsonify({"message":"Updated successfully."}), 200
 
 
 @app.route('/accused/<id>', methods=['DELETE'])
 def delete_accused(id):
-    #json = request.json
-    #application_id = json['application_id']
-    submitter_id = "ABC"
+    data = request.json
+    application_id = data.get('application_id')
+    submitter_id = data.get('submitter_id')
     accused = Accused.objects.get_or_404(_id=id)
     accused.update(deleted_at = datetime.datetime.now, deleted_by = submitter_id)
-    #Action(application_id = application_id, action = "Deleted the application", deleted_at = datetime.datetime.now, deleted_by = submitter_id).save()
+    Action(application_id = application_id, action = "Deleted the accused", deleted_at = datetime.datetime.now, deleted_by = submitter_id).save()
     return jsonify({"message":"Deleted successfully."}), 200
 
 @app.errorhandler(404)
