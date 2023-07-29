@@ -10,3 +10,10 @@ Creation of virtual environment:
 >pip install flask-mongoengine
 
 >Then run python file as python app.py in the current directory
+
+MongoDb database
+
+Install MongoDb Compass
+Cluster Name = Application
+Database Name = Application
+DataTables Name = application, action, accused, comment
