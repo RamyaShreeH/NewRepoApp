@@ -1,14 +1,22 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, redirect
+import os
+import urllib.request
+from werkzeug.utils import secure_filename
 from flask_mongoengine import MongoEngine
 import datetime
 
 app = Flask(__name__)
+
+UPLOAD_FOLDER = 'C:/Users/ramya'
+directory_path = r'C:\Users\ramya'
 
 app.config['MONGODB_SETTINGS'] = {
     'db':'Application',
     'host':'localhost',
     'port': 27017
 }
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 db = MongoEngine()
 db.init_app(app)
@@ -61,6 +69,18 @@ class Action(db.Document):
     created_by = db.StringField()
     updated_at = db.DateTimeField()
     updated_by = db.StringField()
+    deleted_at = db.DateTimeField()
+    deleted_by = db.StringField()
+
+class Attachments(db.Document):
+    id = db.SequenceField(primary_key=True)
+    application_id = db.IntField()
+    submitter_id = db.StringField()
+    filename = db.StringField()
+    '''created_at = db.DateTimeField(default = datetime.datetime.now)
+    created_by = db.StringField()
+    updated_at = db.DateTimeField()
+    updated_by = db.StringField()'''
     deleted_at = db.DateTimeField()
     deleted_by = db.StringField()
 
@@ -231,6 +251,76 @@ def delete_accused(id):
     accused = Accused.objects.get_or_404(_id=id)
     accused.update(deleted_at = datetime.datetime.now, deleted_by = submitter_id)
     Action(application_id = application_id, action = "Deleted the accused", deleted_at = datetime.datetime.now, deleted_by = submitter_id).save()
+    return jsonify({"message":"Deleted successfully."}), 200
+
+# File apis
+
+ALLOWED_EXTENSIONS = set(['pdf', 'png', 'jpg'])
+
+def allowed_file(filename):
+	return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/attachments/<application_id>/<submitter_id>', methods = ['POST'])
+def upload_file(application_id, submitter_id):
+    if 'file' not in request.files:
+	    response = jsonify({'message' : 'No file part in the request'})
+	    response.status_code = 400
+	    return response
+    file = request.files['file']
+    file_extension = file.filename.split('.')[1]
+    if file.filename == '':
+	    response = jsonify({'message' : 'No file selected for uploading'})
+	    response.status_code = 400
+	    return response
+    if file and allowed_file(file.filename):
+        attachments = Attachments(application_id = application_id, submitter_id = submitter_id).save()
+        id = attachments.id
+        print('file_extension:', file_extension)
+        print('upload folder:', app.config['UPLOAD_FOLDER'])
+        print('id:', id)
+        filename = str(id) + "." + file_extension
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        print('file path:', file_path)
+        print('application_id:', application_id)
+        print('submitter_id:', submitter_id)
+        file.save(file_path)
+        attachments.update(application_id = application_id, submitter_id = submitter_id, filename = filename)
+        return str(id), 201
+    else:
+	    response = jsonify({'message' : 'Allowed file types are  pdf, png, jpg'})
+	    response.status_code = 400
+	    return response
+
+@app.route('/attachments/<attachment_id>', methods = ['GET'])
+def read_file(attachment_id):
+    files_list = []
+    filename = " "
+    filepath = " "
+    for file_path in os.listdir(directory_path):
+    # check if current file_path is a file
+        if os.path.isfile(os.path.join(directory_path, file_path)):
+        # add filename to list
+            files_list.append(file_path)
+    print("Files List",files_list)
+
+    for attachment in Attachments.objects:
+        if str(attachment.id) == attachment_id:
+            print("Inside if")
+            print("File Name", attachment.filename)
+            filename = attachment.filename
+
+    for file in files_list:
+        if file == filename:
+            filepath = os.path.join(directory_path,file)
+            print("Filepath:", filepath)
+            print("FOUND")
+            fp = open(str(filepath),'r',encoding="ISO-8859-1")
+            return fp.read()
+
+@app.route('/attachments/<attachment_id>', methods=['DELETE'])
+def delete_attachment(attachment_id):
+    attachment = Attachments.objects.get_or_404(id = attachment_id)
+    attachment.update(deleted_at = datetime.datetime.now, deleted_by = attachment.submitter_id)
     return jsonify({"message":"Deleted successfully."}), 200
 
 @app.errorhandler(404)
